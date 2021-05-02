@@ -18,6 +18,27 @@ from subprocess import PIPE
 
 
 
+
+def get_dir(path: Path, search: str):
+    if path.name == search:
+        print(path)
+        return path
+    for d in path.iterdir():
+        if d.is_dir():
+            result = get_dir(d, search)
+            if result:
+                return result            
+
+# path = Path("CAB402GeneticAlgorithm")
+# result = get_dir(path, "GAUnitTests")
+# print(result)
+
+
+# quit()
+
+
+
+
 # --------- PYPARAMS ------------
 
 coloredlogs.install(level="DEBUG")
@@ -25,53 +46,56 @@ logging.basicConfig(format = "%(asctime)s | %(levelname)s | %(message)s", level=
 
 # ----------- PARAMS ------------
 
-TARGET = Path('phase-1').absolute().__str__()
-PROJECT = 'CAB402StudyPlanner'
-SOLUTION = 'CAB402StudyPlanner.sln'
-CUSTOM_CODE = ['CSharpModel', 'FSharpModel']
+TARGET = Path('phase-2').absolute().__str__()
+PROJECT = 'CAB402GeneticAlgorithm'
+SOLUTION = 'CAB402GeneticAlgorithm.sln'
+CUSTOM_CODE = ['ScheduleModel', 'GeneticAlgorithm']
 TESTS_PROJ = "ModelUnitTests\\ModelUnitTests.csproj" 
 TIMEOUT = 60 * 60 * 1000 # ms
-CORES = 80
+CORES = 12
 OVERWRITES = [
     # Path("CAB402StudyPlanner", "FSharpModel", "BoundsOptimizer.fs")
 ] 
 STUDENT_RESTRICTION = []
-TARGETS = {     # https://docs.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
-    "CSharpTryToImproveScheduleTests": "ClassName=ModelUnitTests.CSharpTryToImproveScheduleTests",
-    "FSharpTryToImproveScheduleTests": "ClassName=ModelUnitTests.FSharpTryToImproveScheduleTests",
-    "UnitPrereqsTests": "ClassName=ModelUnitTests.UnitPrereqsTests",
-    "boundUnitsInPlanTests": "ClassName=ModelUnitTests.boundUnitsInPlanTests",
-    "displayOfferedTests": "ClassName=ModelUnitTests.displayOfferedTests",
-    "displayTests": "ClassName=ModelUnitTests.displayTests",
-    "getPrereqTests": "ClassName=ModelUnitTests.getPrereqTests",
-    "getUnitTitleTests": "ClassName=ModelUnitTests.getUnitTitleTests",
-    "isEnrollableInTests": "ClassName=ModelUnitTests.isEnrollableInTests",
-    "isEnrollableTests": "ClassName=ModelUnitTests.isEnrollableTests",
-    "isLegalInTests": "ClassName=ModelUnitTests.isLegalInTests",
-    "isLegalPlanTests": "ClassName=ModelUnitTests.isLegalPlanTests",
-    "unitDependenciesWithinPlanTests": "ClassName=ModelUnitTests.unitDependenciesWithinPlanTests"
-}
 
+# https://docs.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
+TARGETS = [
+    ("GAUnitTests/GAUnitTests.csproj", "CrossAtTests", "ClassName=GeneticAlgorithmUnitTests.CrossAtTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "CrossTests", "ClassName=GeneticAlgorithmUnitTests.CrossTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "ElitismSelectionTests", "ClassName=GeneticAlgorithmUnitTests.ElitismSelectionTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "EvolveForeverTests", "ClassName=GeneticAlgorithmUnitTests.EvolveForeverTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "EvolveOneGenerationTests", "ClassName=GeneticAlgorithmUnitTests.EvolveOneGenerationTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "FitestTests", "ClassName=GeneticAlgorithmUnitTests.FitestTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "PossiblyMutateTests", "ClassName=GeneticAlgorithmUnitTests.PossiblyMutateTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "ProcreateTests", "ClassName=GeneticAlgorithmUnitTests.ProcreateTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "RandomIndividualsTests", "ClassName=GeneticAlgorithmUnitTests.RandomIndividualsTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "ReverseMutateAtTests", "ClassName=GeneticAlgorithmUnitTests.ReverseMutateAtTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "ScoreTests", "ClassName=GeneticAlgorithmUnitTests.ScoreTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "TournamentSelectTests", "ClassName=GeneticAlgorithmUnitTests.TournamentSelectTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "TournamentWinnerTests", "ClassName=GeneticAlgorithmUnitTests.TournamentWinnerTests"),
+    ("ScheduleUnitTests/ScheduleUnitTests.csproj", "AthleticsScheduleCostTests", "ClassName=ScheduleUnitTests.AthleticsScheduleCostTests"),
+    ("ScheduleUnitTests/ScheduleUnitTests.csproj", "EarliestStartTests", "ClassName=ScheduleUnitTests.EarliestStartTests"),
+    ("ScheduleUnitTests/ScheduleUnitTests.csproj", "ScheduleNextTests", "ClassName=ScheduleUnitTests.ScheduleNextTests"),
+    ("ScheduleUnitTests/ScheduleUnitTests.csproj", "ScheduleTests", "ClassName=ScheduleUnitTests.ScheduleTests"),
+]
 
 RESULTS = 'results.csv'
 
-
 # ----------- IMPLEMENTATION ------------
-
-
-
 @dataclass
 class Test:
-    name: str
     path: str
+    name: str
     target: str
 
     def to_cmd(self, temp_dir, ):
         return ["dotnet", "test", os.path.join(temp_dir, PROJECT, self.path), "--filter", self.target, "-c", "Release", "--", f"RunConfiguration.TestSessionTimeout={TIMEOUT}", f"RunConfiguration.MaxCpuCount={CORES}"]
 
-TESTS = [Test(name, TESTS_PROJ, target) for name, target in TARGETS.items()]
+TESTS = [Test(*args) for args in TARGETS]
 logging.info("targets built")
-FIELDNAMES = ['studentno'] + ['{}_{}'.format(test.name, field) for test in TESTS for field in ['Passed']]
+FIELDNAMES = ['studentno'] + ['{}_{}'.format(test.name, field) for test in TESTS for field in ['Passed', 'Time']]
+
+print(FIELDNAMES)
 
 def prepare_project():
     temp_dir = tempfile.mkdtemp()
@@ -145,16 +169,19 @@ def run_all_tests(temp_dir, existing_results=None):
 
 def run_tests(student_no, temp_dir, student_dir):
     try:
-
         for code_dir in CUSTOM_CODE:
             removal = os.path.join(temp_dir, PROJECT, code_dir)
             logging.debug(f"removing {removal}")
             shutil.rmtree(removal)
 
-            source = os.path.join(TARGET, student_dir, PROJECT, code_dir)
+            # source = os.path.join(TARGET, student_dir, PROJECT, code_dir)
+            source = get_dir(Path(TARGET, student_dir), code_dir)
+            if not source:                    
+                logging.error(f"failed to find in {student_dir}: {code_dir}")
+            
             logging.debug(f"copying {source} -> {removal}")
             shutil.copytree(source, removal)
-            
+        
         for overwrite in OVERWRITES:
             _src = overwrite
             _des = Path(temp_dir, PROJECT, overwrite.parent.name, overwrite.name)
@@ -163,8 +190,9 @@ def run_tests(student_no, temp_dir, student_dir):
 
 
     except Exception as e:
-        logging.debug("something went wrong during copying of student files, skipping tests")
-        logging.debug(f"{str(e)}")
+        logging.error("something went wrong during copying of student files, skipping tests")
+        logging.error(f"{str(e)}")
+        raise e
 
     # Run tests
     test_results = {'studentno': student_no}
@@ -199,30 +227,39 @@ def run_tests(student_no, temp_dir, student_dir):
                 # test_results[f"{test.name}_Time"] = -1
                 continue
                 
-            total_secs = re.search("Total time: (.*) Seconds", stdout_run)
-            total_mins = re.search("Total time: (.*) Minutes", stdout_run)
-
-            if total_secs:
-                total_secs = float(total_secs.groups()[0])
-            else:
-                total_secs = float(total_mins.groups()[0]) * 60
-
-            count_total = re.search("Total tests: ([0-9]+)", stdout_run).groups()[0]
-            count_fail = re.search("Failed: ([0-9]+)", stdout_run)
             
-            count_pass = 0
-            if count_fail:
-                count_pass = int(count_total) - int(count_fail.groups()[0])
-            else:
-                count_pass = re.search("Passed: ([0-9]+)", stdout_run).groups()[0]
+            ms_attempt = re.search("Duration: (.*) ms", stdout_run)
+            s_attempt = re.search("Duration: (.*) s", stdout_run)
 
-            test_results[f"{test.name}_Passed"] = count_pass
-            # test_results[f"{test.name}_Time"] = total_secs
-            logging.debug(f"tests complete. passed: {count_pass}, time: {total_secs}")
+            total_s = 0
+            if ms_attempt:
+                total_s = float(ms_attempt.groups()[0]) / float(1000)
+            if s_attempt:
+                total_s = float(s_attempt.groups()[0])
+
+            def funcy(ting):
+                return int(re.search(f"{ting}:[ \t]+([0-9]+)", stdout_run).groups()[0])
+
+            count_failed = funcy("Failed")
+            count_passed = funcy("Passed")
+            count_skipped = funcy("Skipped")
+            count_total = funcy("Total")
+
+            if count_skipped > 0:
+                logging.debug(f"ALERT ALERT ALERT ALERT ALERT ALERT ALERT ALERT")
+
+            assert(count_failed + count_passed == count_total)
+
+            test_results[f"{test.name}_Passed"] = count_passed
+            test_results[f"{test.name}_Time"] = total_s
+            logging.debug(f"tests complete. passed: {count_passed}, time: {total_s} s")
     
 
     except Exception as e:
         logging.debug(f"something went during testing: {e}")
+        logging.debug(f"diagnostics: {stdout_run=} {stderr_run=}")
+        raise e
+    
 
     return test_results
 
