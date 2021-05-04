@@ -94,9 +94,8 @@ class Test:
 
 TESTS = [Test(*args) for args in TARGETS]
 logging.info("targets built")
-FIELDNAMES = ['studentno'] + ['{}_{}'.format(test.name, field) for test in TESTS for field in ['Passed', 'Time']]
-
-print(FIELDNAMES)
+# FIELDNAMES = ['studentno'] + ['{}_{}'.format(test.name, field) for test in TESTS for field in ['Passed', 'Time']]
+# print(FIELDNAMES)
 
 def prepare_project():
     temp_dir = tempfile.mkdtemp()
@@ -124,17 +123,20 @@ def read_results():
 
 
 def write_results(test_results):
+
+    field_names = list(list(test_results.values())[0].keys())
+
     logging.debug(f"writing results to {RESULTS}")
     try:
         with open(RESULTS, 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=FIELDNAMES)
+            writer = csv.DictWriter(csvfile, fieldnames=field_names)
             writer.writeheader()
             for _, row in sorted(test_results.items()):
                 writer.writerow(row)
     
     except IOError:
         # File can't be written - writing to stdout
-        writer = csv.DictWriter(sys.stdout, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(sys.stdout, fieldnames=field_names)
         writer.writeheader()
         for _, row in sorted(test_results.items()):
             writer.writerow(row)
@@ -186,15 +188,17 @@ def run_all_tests(temp_dir, existing_results=None):
         write_results(existing_results)
 
 
+
 def run_specific_console(temp_dir, existing_results=None):
     existing_results = existing_results or {}
     logging.debug(f"running specific console")
 
+
     SPECIFIC_CONSOLE_PROJECT_PATH = "CSTester"
 
     for student_dir in TARGET.iterdir():
-        student_no = student_dir
-
+        student_no = student_dir.name
+        test_results = {'studentno': student_no}
         if student_no in existing_results:
             logging.debug(f"skipping student {student_no} - already tested")
             continue
@@ -206,11 +210,20 @@ def run_specific_console(temp_dir, existing_results=None):
         process = subprocess.run(cmd, stdout=PIPE, stderr=PIPE)
         stdout_run = process.stdout.decode("utf-8")
         stderr_run = process.stderr.decode("utf-8")
-
         logging.info(stdout_run)
         logging.warning(stderr_run)
 
-        continue
+        seconds = float(re.search("Total time elapsed: (.*) seconds", stdout_run).groups()[0])
+        search = re.search("Best tour after (.*) iterations without improvement: (.*)", stdout_run)
+
+        iterations = int(search.groups()[0])
+        shortest_tour = float(search.groups()[1])
+
+        test_results[f"seconds"] = str(seconds)
+        test_results[f"shortest tour"] = str(shortest_tour)
+
+        existing_results[student_no] = test_results
+        write_results(existing_results)
 
 def run_tests(student_no, temp_dir, student_dir):
 
@@ -251,7 +264,7 @@ def run_tests(student_no, temp_dir, student_dir):
 
             def funcy(ting):
                 return int(re.search(f"{ting}:[ \t]+([0-9]+)", stdout_run).groups()[0])
-
+            
             count_failed = funcy("Failed")
             count_passed = funcy("Passed")
             count_skipped = funcy("Skipped")
