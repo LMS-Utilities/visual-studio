@@ -46,11 +46,11 @@ logging.basicConfig(format = "%(asctime)s | %(levelname)s | %(message)s", level=
 
 # ----------- PARAMS ------------
 
-TARGET = Path('phase-2').absolute().__str__()
+TARGET = Path('gradebook').absolute()
 PROJECT = 'CAB402GeneticAlgorithm'
 SOLUTION = 'CAB402GeneticAlgorithm.sln'
-CUSTOM_CODE = ['ScheduleModel', 'GeneticAlgorithm']
-TESTS_PROJ = "ModelUnitTests\\ModelUnitTests.csproj" 
+# CUSTOM_CODE = ['ScheduleModel', 'GeneticAlgorithm']
+CUSTOM_CODE = ['CSharpSchedule']
 TIMEOUT = 60 * 60 * 1000 # ms
 CORES = 12
 OVERWRITES = [
@@ -140,35 +140,7 @@ def write_results(test_results):
             writer.writerow(row)
 
 
-def run_all_tests(temp_dir, existing_results=None):
-    existing_results = existing_results or {}
-    try:
-        
-        logging.debug(f"running against restricted students {STUDENT_RESTRICTION}")
-
-        for student_dir in os.listdir(TARGET):
-            student_no = student_dir
-
-            if STUDENT_RESTRICTION and student_no not in STUDENT_RESTRICTION:
-                # logging.debug(f"skipping student {student_no} - not restricted")
-                continue
-
-            if student_no in existing_results:
-                logging.debug(f"skipping student {student_no} - already tested")
-                continue
-
-            logging.debug(f"testing student {student_no}")
-            test_results = run_tests(student_no, temp_dir, student_dir)
-            existing_results[student_no] = test_results
-            write_results(existing_results)
-
-
-    except KeyboardInterrupt:
-        logging.debug('keyboard interrupt received -> gracefully exiting...')
-        return
-
-
-def run_tests(student_no, temp_dir, student_dir):
+def apply_common_copy_logic(temp_dir, student_dir, student_no):
     try:
         for code_dir in CUSTOM_CODE:
             removal = os.path.join(temp_dir, PROJECT, code_dir)
@@ -196,6 +168,54 @@ def run_tests(student_no, temp_dir, student_dir):
         logging.error(f"{student_no}")
         raise e
 
+
+def run_all_tests(temp_dir, existing_results=None):
+    existing_results = existing_results or {}
+    logging.debug(f"running against restricted students {STUDENT_RESTRICTION}")
+    for student_dir in TARGET.iterdir():
+        student_no = student_dir
+        if STUDENT_RESTRICTION and student_no not in STUDENT_RESTRICTION:
+            logging.debug(f"skipping student {student_no} - not restricted")
+            continue
+        if student_no in existing_results:
+            logging.debug(f"skipping student {student_no} - already tested")
+            continue
+        logging.debug(f"testing student {student_no}")
+        test_results = run_tests(student_no, temp_dir, student_dir)
+        existing_results[student_no] = test_results
+        write_results(existing_results)
+
+
+def run_specific_console(temp_dir, existing_results=None):
+    existing_results = existing_results or {}
+    logging.debug(f"running specific console")
+
+    SPECIFIC_CONSOLE_PROJECT_PATH = "CSTester"
+
+    for student_dir in TARGET.iterdir():
+        student_no = student_dir
+
+        if student_no in existing_results:
+            logging.debug(f"skipping student {student_no} - already tested")
+            continue
+            
+        logging.debug(f"testing student {student_no}")
+        apply_common_copy_logic(temp_dir, student_dir, student_no)
+        cmd = ["dotnet", "run", "--configuration", "Release", "--project", Path(temp_dir, PROJECT, SPECIFIC_CONSOLE_PROJECT_PATH)]
+        logging.debug(f"running {cmd}")
+        process = subprocess.run(cmd, stdout=PIPE, stderr=PIPE)
+        stdout_run = process.stdout.decode("utf-8")
+        stderr_run = process.stderr.decode("utf-8")
+
+        logging.info(stdout_run)
+        logging.warning(stderr_run)
+
+        continue
+
+def run_tests(student_no, temp_dir, student_dir):
+
+    apply_common_copy_logic(temp_dir, student_dir, student_no)
+
     # Run tests
     test_results = {'studentno': student_no}
 
@@ -204,18 +224,9 @@ def run_tests(student_no, temp_dir, student_dir):
     stdout_run = ""
     stderr_run = ""
     try:
-
-        # for test_name, test_path, test_flags in TESTS:
         for test in TESTS:
             logging.debug(f"testing {test.name}")
             
-            # cmd_build = [ DOTNET, 'build', os.path.join(temp_dir, PROJECT, test.path) ]
-
-            # try:
-            #     process_build = subprocess.run(cmd_build, capture_output=True, check=True) 
-            # except Exception as e:
-            #     logging.debug(f"build failed for test {test.name}. exception is '{e}'. continuing to next test...")
-            #     continue
 
             cmd = test.to_cmd(temp_dir)
             logging.debug(f"running {cmd}")
@@ -225,11 +236,10 @@ def run_tests(student_no, temp_dir, student_dir):
 
             if f"test run timeout of {TIMEOUT} milliseconds exceeded" in stderr_run:
                 logging.debug(f"timeout encountered for {test.name}")
-                test_results[f"{test.name}_Passed"] = -1
-                # test_results[f"{test.name}_Time"] = -1
+                test_results[f"{test.name}_Passed"] = "TIMEOUT"
+                # test_results[f"{test.name}_Time"] = "TIMEOUT"
                 continue
                 
-            
             ms_attempt = re.search("Duration: (.*) ms", stdout_run)
             s_attempt = re.search("Duration: (.*) s", stdout_run)
 
@@ -267,43 +277,38 @@ def run_tests(student_no, temp_dir, student_dir):
     return test_results
 
 
-# n10008195
+def compile_check():
+    for student_dir in Path(TARGET).iterdir():
+        result = get_path(student_dir, "CAB402GeneticAlgorithm.sln")
+
+        if not result:
+            logging.error(f"student did not have an sln {student_dir}")
+            continue
+
+        for d in result.parent.iterdir():
+            if d.is_dir() and d.name in CUSTOM_CODE:
+                # logging.debug(f"compiling {d}")
+                process_test = subprocess.run(["dotnet", "build"], stdout=PIPE, stderr=PIPE, cwd=d)            
+                stdout_run = process_test.stdout.decode("utf-8")
+                stderr_run = process_test.stderr.decode("utf-8")
+
+                # logging.debug(stdout_run)
+
+                if "Build succeeded" in stdout_run:
+                    logging.debug(f"compiled {student_dir.name}")
+                else:
+                    logging.error(f"failure on {student_dir}")
+                    logging.error(stdout_run)                 
+                    logging.error(stderr_run)
 
 def main():
-
-    # run a compile check for all students
-
-    # for student_dir in Path(TARGET).iterdir():
-    #     result = get_path(student_dir, "CAB402GeneticAlgorithm.sln")
-
-    #     if not result:
-    #         logging.error(f"student did not have a sln {student_dir}")
-    #         continue
-
-    #     # return ["dotnet", "test", os.path.join(temp_dir, PROJECT, self.path), "--filter", self.target, "-c", "Release", "--", f"RunConfiguration.TestSessionTimeout={TIMEOUT}", f"RunConfiguration.MaxCpuCount={CORES}"]
-    #     # cmd = ["dotnet", "build", result.parent]
-    #     # logging.debug(f"running {cmd}")
-
-    #     for d in result.parent.iterdir():
-    #         if d.is_dir() and d.name in CUSTOM_CODE:
-    #             logging.debug(f"compiling {d}")
-    #             process_test = subprocess.run(["dotnet", "build"], stdout=PIPE, stderr=PIPE, cwd=d)            
-    #             stdout_run = process_test.stdout.decode("utf-8")
-    #             stderr_run = process_test.stderr.decode("utf-8")
-
-    #             # logging.debug(stdout_run)
-
-    #             if "Build succeeded" not in stdout_run:
-    #                 logging.error(f"failure on {student_dir}")
-    #                 logging.error(stdout_run)                 
-    #                 logging.error(stderr_run)    
-
-    # quit()
-
-
-    temp_dir = prepare_project()
-    existing_results = read_results()
-    run_all_tests(temp_dir, existing_results)
+    try:
+        temp_dir = prepare_project()
+        existing_results = read_results()
+        # run_all_tests(temp_dir, existing_results)
+        run_specific_console(temp_dir, existing_results)
+    except KeyboardInterrupt:
+        logging.debug('keyboard interrupt received -> gracefully exiting...')
     cleanup_project(temp_dir)
 
 
