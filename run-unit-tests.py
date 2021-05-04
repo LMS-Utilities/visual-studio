@@ -19,13 +19,13 @@ from subprocess import PIPE
 
 
 
-def get_dir(path: Path, search: str):
+def get_path(path: Path, search: str):
     if path.name == search:
-        print(path)
+        # print(path)
         return path
-    for d in path.iterdir():
-        if d.is_dir():
-            result = get_dir(d, search)
+    if path.is_dir():
+        for d in path.iterdir():
+            result = get_path(d, search)
             if result:
                 return result            
 
@@ -70,6 +70,7 @@ TARGETS = [
     ("GAUnitTests/GAUnitTests.csproj", "ProcreateTests", "ClassName=GeneticAlgorithmUnitTests.ProcreateTests"),
     ("GAUnitTests/GAUnitTests.csproj", "RandomIndividualsTests", "ClassName=GeneticAlgorithmUnitTests.RandomIndividualsTests"),
     ("GAUnitTests/GAUnitTests.csproj", "ReverseMutateAtTests", "ClassName=GeneticAlgorithmUnitTests.ReverseMutateAtTests"),
+    ("GAUnitTests/GAUnitTests.csproj", "ReverseMutateTests", "ClassName=GeneticAlgorithmUnitTests.ReverseMutateTests"),
     ("GAUnitTests/GAUnitTests.csproj", "ScoreTests", "ClassName=GeneticAlgorithmUnitTests.ScoreTests"),
     ("GAUnitTests/GAUnitTests.csproj", "TournamentSelectTests", "ClassName=GeneticAlgorithmUnitTests.TournamentSelectTests"),
     ("GAUnitTests/GAUnitTests.csproj", "TournamentWinnerTests", "ClassName=GeneticAlgorithmUnitTests.TournamentWinnerTests"),
@@ -175,7 +176,7 @@ def run_tests(student_no, temp_dir, student_dir):
             shutil.rmtree(removal)
 
             # source = os.path.join(TARGET, student_dir, PROJECT, code_dir)
-            source = get_dir(Path(TARGET, student_dir), code_dir)
+            source = get_path(Path(TARGET, student_dir), code_dir)
             if not source:                    
                 logging.error(f"failed to find in {student_dir}: {code_dir}")
             
@@ -192,6 +193,7 @@ def run_tests(student_no, temp_dir, student_dir):
     except Exception as e:
         logging.error("something went wrong during copying of student files, skipping tests")
         logging.error(f"{str(e)}")
+        logging.error(f"{student_no}")
         raise e
 
     # Run tests
@@ -256,15 +258,49 @@ def run_tests(student_no, temp_dir, student_dir):
     
 
     except Exception as e:
-        logging.debug(f"something went during testing: {e}")
-        logging.debug(f"diagnostics: {stdout_run=} {stderr_run=}")
-        raise e
+        logging.error(f"something went during testing: {e}")
+        logging.error(f"diagnostics: {stdout_run=} {stderr_run=}")
+        logging.error(f"{student_no}")
+        # raise e
     
 
     return test_results
 
 
+# n10008195
+
 def main():
+
+    # run a compile check for all students
+
+    # for student_dir in Path(TARGET).iterdir():
+    #     result = get_path(student_dir, "CAB402GeneticAlgorithm.sln")
+
+    #     if not result:
+    #         logging.error(f"student did not have a sln {student_dir}")
+    #         continue
+
+    #     # return ["dotnet", "test", os.path.join(temp_dir, PROJECT, self.path), "--filter", self.target, "-c", "Release", "--", f"RunConfiguration.TestSessionTimeout={TIMEOUT}", f"RunConfiguration.MaxCpuCount={CORES}"]
+    #     # cmd = ["dotnet", "build", result.parent]
+    #     # logging.debug(f"running {cmd}")
+
+    #     for d in result.parent.iterdir():
+    #         if d.is_dir() and d.name in CUSTOM_CODE:
+    #             logging.debug(f"compiling {d}")
+    #             process_test = subprocess.run(["dotnet", "build"], stdout=PIPE, stderr=PIPE, cwd=d)            
+    #             stdout_run = process_test.stdout.decode("utf-8")
+    #             stderr_run = process_test.stderr.decode("utf-8")
+
+    #             # logging.debug(stdout_run)
+
+    #             if "Build succeeded" not in stdout_run:
+    #                 logging.error(f"failure on {student_dir}")
+    #                 logging.error(stdout_run)                 
+    #                 logging.error(stderr_run)    
+
+    # quit()
+
+
     temp_dir = prepare_project()
     existing_results = read_results()
     run_all_tests(temp_dir, existing_results)
